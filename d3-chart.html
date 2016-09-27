@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="300" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  </head>
+  <body>
+    <style>
+      body { background: #333; }
+      #chart {
+    		width: 600px;
+    		height: 300px;
+    		padding: 20px;
+    		color: #FFF;
+    	}
+    		
+  		.axis path,
+  		.axis line {
+    		fill: none;
+    		stroke: #000;
+    		shape-rendering: crispEdges;
+  		}
+
+      .y.axis .tick:first-child line{
+        stroke:rgb(255,255,255) !important;
+      }
+  		
+  		.line {
+    		fill: none;
+    		stroke: steelblue;
+    		stroke-width: 1.5px;
+      }
+
+      label{
+        color:white;
+        margin-left:30px;
+      }
+
+      label input{
+        width:100px;
+      }
+    </style>
+    <label>Width: <input type="number" min="300" max="1000" id="input_width" value="600"/></label>
+    <label>Height: <input type="number" min="300" max="500" id="input_height" value="300"/></label>
+    <label><input type="button" value="refresh" id="refresh_bt"/></label>
+    <div id="chart"></div>
+    <script>
+      $(document).ready(function(){
+        $('#chart').css("width",$('#input_width').val());
+        $('#chart').css("height",$('#input_height').val());
+        drawChart();
+        $('#refresh_bt').click(function(){
+          $('#chart').css("width",$('#input_width').val());
+          $('#chart').css("height",$('#input_height').val());
+          drawChart();
+        })
+      });
+      function drawChart(){
+        $('#chart').html('');
+        d3.json("data.php", function(error, json) {
+          if (error) throw error;
+          
+          var margin = {top: 60, right: 80, bottom: 130, left: 50},
+            width = d3.select('#chart').style('width').split("px").shift(),
+            height = d3.select('#chart').style('height').split("px").shift()
+
+            console.log("height: " + height);
+                      console.log("width: " + width);
+          var x = d3.scale.ordinal()
+              .domain(json.headers)
+              .rangePoints([50, width]);
+
+          var y = d3.scale.linear()
+              .domain([0, 100])
+              .range([height, 0]);
+
+          var color = d3.scale.category10();
+
+          var xAxis = d3.svg.axis()
+              .scale(x)
+              .orient("bottom")
+              .innerTickSize(-height)
+              .outerTickSize(0)
+              .tickPadding(10);
+
+          var yAxis = d3.svg.axis()
+              .scale(y)
+              .orient("left")
+              .innerTickSize(-width)
+              .outerTickSize(0)
+              .tickPadding(10);
+
+          var line = d3.svg.line()
+              .interpolate("cardinal")
+              .x(function(d) { return x(d.metric); })
+              .y(function(d) { return y(d.value); });
+
+          var svg = d3.select("#chart").append("svg")
+              .attr("width", width + margin.left + margin.right)
+              .attr("height", height + margin.top + margin.bottom)
+              .append("g")
+              .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+          svg.append("text")
+             .attr("x", (width / 2))
+             .attr("y", 0 - (margin.top / 2))
+             .attr("text-anchor", "middle")
+             .style("font-size", "16px")
+             .attr("fill", "#FFFFFF")
+             .style("text-decoration", "underline")
+             .text(json.title);
+
+          var names = $.map(json.data, function(n) { return n.name; });
+
+          var color = d3.scale.ordinal()
+              .domain(names)
+              .range(["#FF0000", "#009933"]);
+
+          var metrics = color.domain().map(function(name) {
+            values = json.data.filter(function(d) { return d.name !== name; })[0].values;
+            headers = json.headers;
+
+            return {
+              name: name,
+              values: $.map(headers, function(h, i) { return { metric: h, value: values[i] }; })
+            };
+          });
+
+          svg.append("g")
+             .attr("class", "y axis")
+             .style("fill", "#FFFFFF")
+             .call(yAxis)
+             .append("text")
+             .attr("transform", "rotate(-90)")
+             .attr("y", 6)
+             .attr("dy", ".71em")
+             .style("text-anchor", "end")
+             .text("Percentage (%)");
+
+          svg.append("g")
+             .attr("class", "x axis")
+             .attr("transform", "translate(0," + height + ")")
+             .style("fill", "#FFFFFF")
+             .call(xAxis);
+
+          svg.selectAll('.axis line')
+             .style({'stroke': '#999', 'fill': 'none', 'stroke-width': '1px'});
+
+          svg.selectAll('.axis path')
+             .style({'stroke': '#FFF', 'fill': 'none', 'stroke-width': '1px'});
+
+          svg.selectAll("g.dot")
+             .data(metrics)
+             .enter().append("g")
+             .attr("class", "dot")
+             .attr("stroke", function(d, i) { return color(d.name) })
+             .attr("fill", function(d, i) { return color(d.name) })
+             .selectAll("circle")
+             .data(function(d) { return d.values; })
+             .enter().append("circle")
+             .attr("r", 6)
+             .attr("cx", function(d,i) {  return x(d.metric); })
+             .attr("cy", function(d,i) { return y(d.value); });
+
+          svg.selectAll("g.dotValue")
+             .data(metrics)
+             .enter().append("g")
+             .attr("class", "dotValue")
+             .attr("stroke", function(d, i) { return color(d.name) })
+             .attr("fill", function(d, i) { return color(d.name) })
+             .selectAll("text")
+             .data(function(d) { return d.values; })
+             .enter().append("text")
+             .attr("x", function(d,i) {  return x(d.metric); })
+             .attr("y", function(d,i) { return y(d.value)+25; })
+             .attr("text-anchor","middle")
+             .text(function(d,i){return d.value;});
+
+          var metric = svg.selectAll(".metric")
+              .data(metrics)
+              .enter().append("g")
+              .attr("class", "metric");
+
+          metric.append("path")
+                .attr("class", "line")
+                .attr("d", function(d) { return line(d.values); })
+                .style("stroke", function(d) { return color(d.name); });
+
+          var legend = svg.append("g")
+              .attr("class", "legend")
+              .attr("x", width - 65)
+              .attr("y", 25)
+              .attr("height", 100)
+              .attr("width", 100);
+
+          legend.selectAll('g').data(metrics)
+                .enter()
+                .append('g')
+                .each(function(d, i) {
+                  var g = d3.select(this);
+                  g.append("rect")
+                   .attr("x", width - 65)
+                   .attr("y", i * 25)
+                   .attr("width", 10)
+                   .attr("height", 10)
+                   .style("fill", color(d.name));
+          
+                  g.append("text")
+                   .attr("x", width - 50)
+                   .attr("y", i * 25 + 10)
+                   .attr("height",30)
+                   .attr("width",100)
+                   .style("fill", color(d.name))
+                   .text(d.name);
+                });
+        });
+
+      }
+    </script>
+
+  </body>
+</html>
